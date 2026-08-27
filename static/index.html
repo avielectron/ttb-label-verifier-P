@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TTB Label Verifier</title>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --ink-secondary: #6e6e73;
+    --bg: #ffffff;
+    --bg-tile: #f5f5f7;
+    --hairline: #d2d2d7;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --pass: #0a7d34;
+    --fail: #d70015;
+    --review-bg: #fff8ea;
+    --review-ink: #8a5a00;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+                 "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 28px 24px 20px;
+    flex: 0 0 auto;
+  }
+
+  header h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+
+  header p {
+    font-size: 19px;
+    color: var(--ink-secondary);
+    margin: 0;
+    font-weight: 400;
+  }
+
+  main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 0 24px 24px;
+  }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; overflow-y: auto; }
+    body { overflow: auto; }
+  }
+
+  .tile {
+    background: var(--bg-tile);
+    border-radius: 22px;
+    padding: 28px 30px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .tile h2 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+
+  .tile .tile-sub {
+    font-size: 15px;
+    color: var(--ink-secondary);
+    margin: 0 0 20px;
+    line-height: 1.4;
+  }
+
+  .tile .tile-sub code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 13px;
+  }
+
+  .field-row { margin-bottom: 12px; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: inherit;
+    background: white;
+  }
+  input[type="text"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* big, obvious file-picker pill */
+  .file-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 18px;
+    background: white;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+    transition: border-color 0.15s ease;
+  }
+  .file-pill:hover { border-color: var(--accent); }
+  .file-pill svg { flex: 0 0 auto; }
+  .file-pill .file-pill-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-pill input[type="file"] { display: none; }
+
+  .cta {
+    margin-top: auto;
+    padding-top: 16px;
+  }
+
+  button.big-btn {
+    width: 100%;
+    padding: 16px 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 980px; /* full pill */
+    font-size: 18px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button.big-btn:hover { background: var(--accent-hover); }
+  button.big-btn:disabled { background: var(--hairline); color: var(--ink-secondary); cursor: default; }
+
+  .status-line {
+    font-size: 14px;
+    color: var(--ink-secondary);
+    margin-top: 12px;
+    min-height: 18px;
+  }
+  .status-line.error { color: var(--fail); font-weight: 500; }
+
+  .results-scroll {
+    margin-top: 16px;
+    overflow-y: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  /* quick-check result card */
+  .quick-result {
+    display: flex;
+    gap: 16px;
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    align-items: flex-start;
+  }
+  .quick-result img {
+    width: 84px;
+    height: 84px;
+    object-fit: cover;
+    border-radius: 10px;
+    flex: 0 0 auto;
+    border: 1px solid var(--hairline);
+  }
+  .quick-result .fields { flex: 1 1 auto; min-width: 0; }
+  .quick-result .field-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 15px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .quick-result .field-line:last-child { border-bottom: none; }
+  .quick-result .field-label { color: var(--ink-secondary); }
+  .quick-result .verdict-badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 12px;
+    border-radius: 980px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .verdict-badge.pass { background: rgba(10,125,52,0.12); color: var(--pass); }
+  .verdict-badge.fail { background: rgba(215,0,21,0.10); color: var(--fail); }
+  .verdict-badge.review { background: var(--review-bg); color: var(--review-ink); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: white; border-radius: 12px; overflow: hidden; }
+  th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--hairline); }
+  th { background: var(--bg-tile); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-secondary); }
+  tr:last-child td { border-bottom: none; }
+
+  .pass-mark { color: var(--pass); font-weight: 700; }
+  .fail-mark { color: var(--fail); font-weight: 700; }
+  .review-row { background: var(--review-bg); }
+  .review-text { color: var(--review-ink); font-weight: 600; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TTB Label Verifier</h1>
+  <p>Point a camera at a label. Get brand, ABV%, and warning-text verification back in seconds.</p>
+</header>
+
+<main>
+
+  <!-- Quick check tile -->
+  <section class="tile">
+    <h2>Check one label</h2>
+    <p class="tile-sub">Upload a photo of a label for an instant read.</p>
+
+    <div class="field-row">
+      <label for="single-image">Label photo</label>
+      <label class="file-pill" for="single-image">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M4 16.5V19a2 2 0 002 2h12a2 2 0 002-2v-2.5M7 9l5-5 5 5M12 4v13" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="file-pill-text" id="single-image-label">Choose a photo…</span>
+      </label>
+      <input type="file" id="single-image" accept="image/*" />
+    </div>
+
+    <div class="field-row">
+      <label for="single-brand">Expected brand (optional)</label>
+      <input type="text" id="single-brand" placeholder="e.g. Resolution" />
+    </div>
+    <div class="field-row">
+      <label for="single-abv">Expected ABV % (optional)</label>
+      <input type="text" id="single-abv" placeholder="e.g. 14.9" />
+    </div>
+
+    <div class="cta">
+      <button class="big-btn" id="single-btn">Check Label</button>
+      <div class="status-line" id="single-status"></div>
+    </div>
+
+    <div class="results-scroll" id="single-result"></div>
+  </section>
+
+  <!-- Batch check tile -->
+  <section class="tile">
+    <h2>Check a batch</h2>
+    <p class="tile-sub">
+      A CSV (<code>filename,expected_brand,expected_abv</code>) plus a zip of the
+      images it refers to. Any comma/semicolon/tab CSV works.
+    </p>
+
+    <div class="field-row">
+      <label for="csv-file">Expected values CSV</label>
+      <label class="file-pill" for="csv-file">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-linejoin="round"/>
+          <path d="M14 2v6h6" stroke-linejoin="round"/>
+        </svg>
+        <span class="file-pill-text" id="csv-file-label">Choose CSV…</span>
+      </label>
+      <input type="file" id="csv-file" accept=".csv" />
+    </div>
+
+    <div class="field-row">
+      <label for="zip-file">Images zip</label>
+      <label class="file-pill" for="zip-file">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="4" y="4" width="16" height="16" rx="2" stroke-linejoin="round"/>
+          <path d="M9 4v3M9 9v2M9 13v2M9 17v3" stroke-linecap="round"/>
+        </svg>
+        <span class="file-pill-text" id="zip-file-label">Choose zip…</span>
+      </label>
+      <input type="file" id="zip-file" accept=".zip" />
+    </div>
+
+    <div class="cta">
+      <button class="big-btn" id="batch-btn">Run Batch Check</button>
+      <div class="status-line" id="batch-status"></div>
+    </div>
+
+    <div class="results-scroll" id="batch-result"></div>
+  </section>
+
+</main>
+
+<script>
+const API_BASE = "";
+
+function fmtFileLabel(input, fallback) {
+  input.addEventListener("change", () => {
+    const label = document.getElementById(input.id + "-label");
+    label.textContent = input.files[0] ? input.files[0].name : fallback;
+  });
+}
+fmtFileLabel(document.getElementById("single-image"), "Choose a photo…");
+fmtFileLabel(document.getElementById("csv-file"), "Choose CSV…");
+fmtFileLabel(document.getElementById("zip-file"), "Choose zip…");
+
+function verdictBadge(r) {
+  if (r.needs_review) return `<span class="verdict-badge review">Needs review</span>`;
+  return r.overall_pass
+    ? `<span class="verdict-badge pass">Pass</span>`
+    : `<span class="verdict-badge fail">Fail</span>`;
+}
+
+function quickResultHtml(r, imageUrl) {
+  if (r.needs_review) {
+    return `
+      <div class="quick-result">
+        ${imageUrl ? `<img src="${imageUrl}" alt="" />` : ""}
+        <div class="fields">
+          <div class="field-line"><span class="field-label">Status</span><span>${r.review_reason ?? "Needs review"}</span></div>
+          ${r.error ? `<div class="field-line"><span class="field-label">Error</span><span>${r.error}</span></div>` : ""}
+          ${verdictBadge(r)}
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="quick-result">
+      ${imageUrl ? `<img src="${imageUrl}" alt="" />` : ""}
+      <div class="fields">
+        <div class="field-line"><span class="field-label">Brand</span><span>${r.extracted_brand ?? "—"} ${r.brand_match ? '<span class="pass-mark">✔</span>' : '<span class="fail-mark">✘</span>'}</span></div>
+        <div class="field-line"><span class="field-label">ABV</span><span>${r.extracted_abv ?? "—"}% ${r.abv_match ? '<span class="pass-mark">✔</span>' : '<span class="fail-mark">✘</span>'}</span></div>
+        <div class="field-line"><span class="field-label">Gov. warning</span><span>${r.government_warning_present ? '<span class="pass-mark">✔ Present</span>' : '<span class="fail-mark">✘ Missing</span>'}</span></div>
+        ${verdictBadge(r)}
+      </div>
+    </div>`;
+}
+
+function batchRowHtml(r) {
+  if (r.needs_review) {
+    return `
+      <tr class="review-row">
+        <td>${r.filename ?? ""}</td>
+        <td colspan="5"><span class="review-text">Needs review</span> — ${r.review_reason ?? r.error ?? ""}</td>
+        <td>${verdictBadge(r)}</td>
+      </tr>`;
+  }
+  const mark = (ok) => ok ? '<span class="pass-mark">✔</span>' : '<span class="fail-mark">✘</span>';
+  return `
+    <tr>
+      <td>${r.filename ?? ""}</td>
+      <td>${r.expected_brand ?? "—"}</td>
+      <td>${r.extracted_brand ?? "—"} ${mark(r.brand_match)}</td>
+      <td>${r.expected_abv ?? "—"}</td>
+      <td>${r.extracted_abv ?? "—"} ${mark(r.abv_match)}</td>
+      <td>${mark(r.government_warning_present)}</td>
+      <td>${verdictBadge(r)}</td>
+    </tr>`;
+}
+
+function batchTableHtml(rows) {
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>File</th><th>Expected brand</th><th>Extracted brand</th>
+          <th>Expected ABV</th><th>Extracted ABV</th><th>Gov warning</th><th>Result</th>
+        </tr>
+      </thead>
+      <tbody>${rows.map(batchRowHtml).join("")}</tbody>
+    </table>`;
+}
+
+document.getElementById("single-btn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("single-image");
+  const statusEl = document.getElementById("single-status");
+  const resultEl = document.getElementById("single-result");
+  if (!fileInput.files[0]) {
+    statusEl.textContent = "Choose a photo first.";
+    statusEl.className = "status-line error";
+    return;
+  }
+  const imageUrl = URL.createObjectURL(fileInput.files[0]);
+  const form = new FormData();
+  form.append("image", fileInput.files[0]);
+  form.append("expected_brand", document.getElementById("single-brand").value);
+  form.append("expected_abv", document.getElementById("single-abv").value);
+
+  statusEl.textContent = "Reading label…";
+  statusEl.className = "status-line";
+  resultEl.innerHTML = "";
+  try {
+    const res = await fetch(`${API_BASE}/verify-one`, { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+    statusEl.textContent = "";
+    resultEl.innerHTML = quickResultHtml(data, imageUrl);
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.className = "status-line error";
+  }
+});
+
+document.getElementById("batch-btn").addEventListener("click", async () => {
+  const csvInput = document.getElementById("csv-file");
+  const zipInput = document.getElementById("zip-file");
+  const statusEl = document.getElementById("batch-status");
+  const resultEl = document.getElementById("batch-result");
+  if (!csvInput.files[0] || !zipInput.files[0]) {
+    statusEl.textContent = "Choose both a CSV and a zip file.";
+    statusEl.className = "status-line error";
+    return;
+  }
+  const form = new FormData();
+  form.append("csv_file", csvInput.files[0]);
+  form.append("images_zip", zipInput.files[0]);
+
+  statusEl.textContent = "Verifying labels… this can take a while for large batches.";
+  statusEl.className = "status-line";
+  resultEl.innerHTML = "";
+  try {
+    const res = await fetch(`${API_BASE}/verify`, { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+    statusEl.textContent = `Done — ${data.results.length} label(s) checked.`;
+    resultEl.innerHTML = batchTableHtml(data.results);
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.className = "status-line error";
+  }
+});
+</script>
+
+</body>
+</html>
