@@ -18,7 +18,7 @@ import anthropic
 
 from app.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 
-_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=30.0)
 
 EXTRACTION_PROMPT = """You are looking at a photo that is supposed to show one alcoholic beverage label (wine, beer, or spirits).
 
