@@ -1,3 +1,4 @@
+import asyncio
 import io
 import zipfile
 from pathlib import Path
@@ -66,7 +67,7 @@ async def verify_one(
     """Quick single-image check — handy for testing without a CSV/zip."""
     image_bytes = await image.read()
     try:
-        extracted = extract_label_fields(image_bytes, image.filename or "upload.jpg")
+        extracted = await asyncio.to_thread(extract_label_fields, image_bytes, image.filename or "upload.jpg")
     except VisionExtractionError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -128,7 +129,7 @@ async def verify_batch(
 
         image_bytes = zf.read(zip_entry)
         try:
-            extracted = extract_label_fields(image_bytes, expected_row["filename"])
+             extracted = await asyncio.to_thread(extract_label_fields, image_bytes, expected_row["filename"])
         except VisionExtractionError as e:
             results.append(error_result(expected_row, str(e)))
             continue
